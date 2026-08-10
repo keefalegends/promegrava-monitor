@@ -61,10 +61,15 @@ scrape_configs:
         labels:
           instance: "vps-containers"
           role: "containers"
-    # Relabel: carry container name into every series
+    # Relabel: extract friendly container name from image label
+    # e.g. "docker.io/library/keetype-frontend:latest" → "keetype-frontend"
     metric_relabel_configs:
-      - source_labels: [container_label_com_docker_compose_service]
-        target_label: service
+      # Extract image basename (strip registry + tag) → friendly name
+      - source_labels: [image]
+        regex: '^(?:.+/)?([^/:]+)(?::.+)?$'
+        target_label: name
+        replacement: '$1'
+      # Also expose as separate "container" label for dashboards that use it
       - source_labels: [name]
         target_label: container
 
