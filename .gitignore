@@ -1,0 +1,25 @@
+# ============================================================
+# .gitignore — promegrava-monitor
+# ============================================================
+
+# Environment secrets — NEVER commit these
+.env
+
+# Grafana local state (if you mount locally instead of a volume)
+grafana/data/
+
+# Prometheus local data
+prometheus/data/
+
+# Editor artefacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Docker override files with local tweaks
+docker-compose.override.yml

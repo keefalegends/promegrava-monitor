@@ -1,0 +1,35 @@
+# Prometheus alerting rules
+# Place rule files here with the pattern *.yml
+# They will be automatically picked up by prometheus.yml (rule_files glob).
+#
+# Example — uncomment to enable:
+#
+# groups:
+#   - name: host-alerts
+#     rules:
+#       - alert: HighCPUUsage
+#         expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 85
+#         for: 5m
+#         labels:
+#           severity: warning
+#         annotations:
+#           summary: "High CPU on {{ $labels.instance }}"
+#           description: "CPU usage is above 85% for more than 5 minutes."
+#
+#       - alert: HighMemoryUsage
+#         expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+#         for: 5m
+#         labels:
+#           severity: critical
+#         annotations:
+#           summary: "High RAM on {{ $labels.instance }}"
+#           description: "RAM usage above 90% for more than 5 minutes."
+#
+#       - alert: DiskAlmostFull
+#         expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+#         for: 10m
+#         labels:
+#           severity: warning
+#         annotations:
+#           summary: "Disk almost full on {{ $labels.instance }}"
+#           description: "Less than 15% disk space remaining."

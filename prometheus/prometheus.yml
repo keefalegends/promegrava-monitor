@@ -1,0 +1,89 @@
+# =============================================================================
+# prometheus.yml — Prometheus scrape configuration
+# =============================================================================
+
+global:
+  scrape_interval: 15s          # default: how often to scrape targets
+  evaluation_interval: 15s      # how often to evaluate alerting rules
+  scrape_timeout: 10s
+
+  external_labels:
+    monitor: "promegrava"
+    environment: "production"
+
+# ---------------------------------------------------------------------------
+# Alertmanager configuration (uncomment when you add Alertmanager)
+# ---------------------------------------------------------------------------
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ["alertmanager:9093"]
+
+# ---------------------------------------------------------------------------
+# Rule files (alerting / recording rules — add later)
+# ---------------------------------------------------------------------------
+rule_files:
+  - "rules/*.yml"
+
+# ---------------------------------------------------------------------------
+# Scrape configurations
+# ---------------------------------------------------------------------------
+scrape_configs:
+
+  # --------------------------------------------------------------------------
+  # Prometheus itself — self-monitoring
+  # --------------------------------------------------------------------------
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          instance: "prometheus-server"
+
+  # --------------------------------------------------------------------------
+  # node_exporter — VPS host metrics (runs in host-network mode)
+  # Prometheus reaches it through the Docker host's gateway IP.
+  # Replace 172.17.0.1 with your actual Docker bridge gateway if different
+  # (run: docker network inspect bridge | grep Gateway)
+  # --------------------------------------------------------------------------
+  - job_name: "node_exporter"
+    static_configs:
+      - targets: ["172.17.0.1:9100"]
+        labels:
+          instance: "vps-host"
+          role: "host"
+
+  # --------------------------------------------------------------------------
+  # cAdvisor — per-container metrics
+  # --------------------------------------------------------------------------
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels:
+          instance: "vps-containers"
+          role: "containers"
+    # Relabel: carry container name into every series
+    metric_relabel_configs:
+      - source_labels: [container_label_com_docker_compose_service]
+        target_label: service
+      - source_labels: [name]
+        target_label: container
+
+  # --------------------------------------------------------------------------
+  # (Optional) Blackbox exporter — HTTP probe for keetype-frontend / backend
+  # Uncomment after adding prom/blackbox-exporter to docker-compose.yml
+  # --------------------------------------------------------------------------
+  # - job_name: "blackbox-http"
+  #   metrics_path: /probe
+  #   params:
+  #     module: [http_2xx]
+  #   static_configs:
+  #     - targets:
+  #         - http://keetype-frontend:80      # frontend health check
+  #         - http://keetype-backend:8000     # backend health check
+  #   relabel_configs:
+  #     - source_labels: [__address__]
+  #       target_label: __param_target
+  #     - source_labels: [__param_target]
+  #       target_label: instance
+  #     - target_label: __address__
+  #       replacement: blackbox_exporter:9115

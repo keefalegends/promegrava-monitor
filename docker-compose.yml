@@ -1,0 +1,127 @@
+# =============================================================================
+# promegrava-monitor — docker-compose.yml
+# Monitoring stack: Prometheus + Grafana + cAdvisor + node_exporter
+#
+# NOTE: This stack joins the same Docker network as keetype-frontend/backend
+# but does NOT expose Prometheus or Grafana directly to the public internet.
+# Access Grafana through an SSH tunnel or a reverse-proxy with auth (see README).
+#
+# Usage:
+#   docker compose up -d
+# =============================================================================
+
+version: "3.9"
+
+# ---------------------------------------------------------------------------
+# Shared internal network for the monitoring stack.
+# If your keetype containers already use a named network, replace
+# "monitoring" with that network name (or add both networks).
+# ---------------------------------------------------------------------------
+networks:
+  monitoring:
+    driver: bridge
+    name: monitoring
+
+# ---------------------------------------------------------------------------
+# Named volumes — data persisted across container restarts
+# ---------------------------------------------------------------------------
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
+
+services:
+
+  # --------------------------------------------------------------------------
+  # node_exporter — exposes VPS/host-level metrics (CPU, RAM, disk, network)
+  # Runs in "host" network mode so it can read real host metrics.
+  # --------------------------------------------------------------------------
+  node_exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node_exporter
+    restart: unless-stopped
+    network_mode: host                        # must be host to read /proc, /sys
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    # Port 9100 is bound to localhost only (host networking).
+    # Do NOT open port 9100 in your firewall to the public.
+
+  # --------------------------------------------------------------------------
+  # cAdvisor — per-container metrics (CPU, RAM, net I/O per container)
+  # --------------------------------------------------------------------------
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    restart: unless-stopped
+    networks:
+      - monitoring
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /cgroup:/cgroup:ro
+    ports:
+      - "127.0.0.1:8080:8080"               # bound to loopback only
+    command:
+      - "--housekeeping_interval=10s"
+      - "--docker_only=true"
+      - "--store_container_labels=false"
+
+  # --------------------------------------------------------------------------
+  # Prometheus — scrape & store all metrics
+  # --------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.53.1
+    container_name: prometheus
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "127.0.0.1:9090:9090"               # ⚠ loopback only — NOT public
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"             # allows hot-reload via POST /-/reload
+    depends_on:
+      - cadvisor
+
+  # --------------------------------------------------------------------------
+  # Grafana — dashboard & visualisation
+  # --------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana-oss:11.1.3
+    container_name: grafana
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "127.0.0.1:3000:3000"               # ⚠ loopback only — NOT public
+    environment:
+      # Change these before going to production!
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      # Provisioning
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus

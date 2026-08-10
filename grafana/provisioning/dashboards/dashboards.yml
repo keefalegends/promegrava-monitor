@@ -1,0 +1,17 @@
+# =============================================================================
+# Grafana provisioning — dashboards
+# Watches ./grafana/provisioning/dashboards/*.json and auto-imports them.
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: "promegrava-dashboards"
+    orgId: 1
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true
